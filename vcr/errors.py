@@ -1,3 +1,7 @@
+from vcr.cassette import Cassette
+from vcr.request import Request
+
+
 class CannotOverwriteExistingCassetteException(Exception):
     def __init__(self, *args, **kwargs):
         self.cassette = kwargs["cassette"]
@@ -6,7 +10,7 @@ class CannotOverwriteExistingCassetteException(Exception):
         super().__init__(message)
 
     @staticmethod
-    def _get_message(cassette, failed_request):
+    def _get_message(cassette: Cassette, failed_request: Request) -> str:
         """Get the final message related to the exception"""
         # Get the similar requests in the cassette that
         # have match the most with the request.

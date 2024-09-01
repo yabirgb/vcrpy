@@ -3,11 +3,15 @@
 import logging
 from http.client import HTTPConnection, HTTPResponse, HTTPSConnection
 from io import BytesIO
+from typing import TYPE_CHECKING
 
 from vcr.errors import CannotOverwriteExistingCassetteException
 from vcr.request import Request
 
 from . import compat
+
+if TYPE_CHECKING:
+    import socket
 
 log = logging.getLogger(__name__)
 
@@ -322,7 +326,7 @@ class VCRConnection:
         self._sock = VCRFakeSocket()
 
     @property
-    def sock(self):
+    def sock(self) -> 'socket.socket':
         if self.real_connection.sock:
             return self.real_connection.sock
         return self._sock
@@ -390,7 +394,7 @@ class VCRHTTPConnection(VCRConnection):
     _baseclass = HTTPConnection
     _protocol = "http"
     debuglevel = _baseclass.debuglevel
-    _http_vsn = _baseclass._http_vsn
+    _http_vsn = _baseclass._http_vsn  # type: ignore  # mypy doesn't find this attribute
 
 
 class VCRHTTPSConnection(VCRConnection):
@@ -400,4 +404,4 @@ class VCRHTTPSConnection(VCRConnection):
     _protocol = "https"
     is_verified = True
     debuglevel = _baseclass.debuglevel
-    _http_vsn = _baseclass._http_vsn
+    _http_vsn = _baseclass._http_vsn  # type: ignore  # mypy doesn't find this attribute

@@ -1,6 +1,10 @@
 # .. _persister_example:
 
 from pathlib import Path
+from typing import Union
+
+from vcr.serializers.types import Serializer
+from vcr.types import CassetteDict
 
 from ..serialize import deserialize, serialize
 
@@ -15,7 +19,7 @@ class CassetteDecodeError(ValueError):
 
 class FilesystemPersister:
     @classmethod
-    def load_cassette(cls, cassette_path, serializer):
+    def load_cassette(cls, cassette_path: Union[str, Path], serializer: Serializer):
         cassette_path = Path(cassette_path)  # if cassette path is already Path this is no operation
         if not cassette_path.is_file():
             raise CassetteNotFoundError()
@@ -28,7 +32,7 @@ class FilesystemPersister:
         return deserialize(data, serializer)
 
     @staticmethod
-    def save_cassette(cassette_path, cassette_dict, serializer):
+    def save_cassette(cassette_path: Path, cassette_dict: CassetteDict, serializer: Serializer):
         data = serialize(cassette_dict, serializer)
         cassette_path = Path(cassette_path)  # if cassette path is already Path this is no operation
 

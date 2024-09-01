@@ -3,7 +3,9 @@ import logging
 import urllib
 import xmlrpc.client
 from string import hexdigits
-from typing import List, Set
+from typing import Any, Callable, Iterable, List, Set
+
+from vcr.request import Request
 
 from .util import read_body
 
@@ -11,48 +13,50 @@ _HEXDIG_CODE_POINTS: Set[int] = {ord(s.encode("ascii")) for s in hexdigits}
 
 log = logging.getLogger(__name__)
 
+TYPE_MATCHER_FUNCTION = Callable[[Request, Request], None]
 
-def method(r1, r2):
+
+def method(r1: Request, r2: Request) -> None:
     if r1.method != r2.method:
         raise AssertionError(f"{r1.method} != {r2.method}")
 
 
-def uri(r1, r2):
+def uri(r1: Request, r2: Request) -> None:
     if r1.uri != r2.uri:
         raise AssertionError(f"{r1.uri} != {r2.uri}")
 
 
-def host(r1, r2):
+def host(r1: Request, r2: Request) -> None:
     if r1.host != r2.host:
         raise AssertionError(f"{r1.host} != {r2.host}")
 
 
-def scheme(r1, r2):
+def scheme(r1: Request, r2: Request) -> None:
     if r1.scheme != r2.scheme:
         raise AssertionError(f"{r1.scheme} != {r2.scheme}")
 
 
-def port(r1, r2):
+def port(r1: Request, r2: Request) -> None:
     if r1.port != r2.port:
         raise AssertionError(f"{r1.port} != {r2.port}")
 
 
-def path(r1, r2):
+def path(r1: Request, r2: Request) -> None:
     if r1.path != r2.path:
         raise AssertionError(f"{r1.path} != {r2.path}")
 
 
-def query(r1, r2):
+def query(r1: Request, r2: Request) -> None:
     if r1.query != r2.query:
         raise AssertionError(f"{r1.query} != {r2.query}")
 
 
-def raw_body(r1, r2):
+def raw_body(r1: Request, r2: Request) -> None:
     if read_body(r1) != read_body(r2):
         raise AssertionError
 
 
-def body(r1, r2):
+def body(r1: Request, r2: Request) -> None:
     transformers = list(_get_transformers(r1))
     if transformers != list(_get_transformers(r2)):
         transformers = []
@@ -67,13 +71,13 @@ def body(r1, r2):
         raise AssertionError
 
 
-def headers(r1, r2):
+def headers(r1: Request, r2: Request) -> None:
     if r1.headers != r2.headers:
         raise AssertionError(f"{r1.headers} != {r2.headers}")
 
 
-def _header_checker(value, header="Content-Type"):
-    def checker(headers):
+def _header_checker(value, header: str="Content-Type") -> Callable[[dict[str, Any]], bool]:
+    def checker(headers: dict[str, Any]):
         _header = headers.get(header, "")
         if isinstance(_header, bytes):
             _header = _header.decode("utf-8")
@@ -82,7 +86,7 @@ def _header_checker(value, header="Content-Type"):
     return checker
 
 
-def _dechunk(body):
+def _dechunk(body: Iterable):
     if isinstance(body, str):
         body = body.encode("utf-8")
     elif isinstance(body, bytearray):
@@ -156,20 +160,20 @@ _checker_transformer_pairs = (
 )
 
 
-def _get_transformers(request):
+def _get_transformers(request: Request):
     for checker, transformer in _checker_transformer_pairs:
         if checker(request.headers):
             yield transformer
 
 
-def requests_match(r1, r2, matchers):
-    successes, failures = get_matchers_results(r1, r2, matchers)
+def requests_match(r1: Request, r2: Request, matchers: list[TYPE_MATCHER_FUNCTION]) -> bool:
+    _, failures = get_matchers_results(r1, r2, matchers)
     if failures:
         log.debug(f"Requests {r1} and {r2} differ.\nFailure details:\n{failures}")
     return len(failures) == 0
 
 
-def _evaluate_matcher(matcher_function, *args):
+def _evaluate_matcher(matcher_function: TYPE_MATCHER_FUNCTION, *args):
     """
     Evaluate the result of a given matcher as a boolean with an assertion error message if any.
     It handles two types of matcher :
@@ -186,7 +190,7 @@ def _evaluate_matcher(matcher_function, *args):
     return match, assertion_message
 
 
-def get_matchers_results(r1, r2, matchers):
+def get_matchers_results(r1: Request, r2: Request, matchers):
     """
     Get the comparison results of two requests as two list.
     The first returned list represents the matchers names that passed.

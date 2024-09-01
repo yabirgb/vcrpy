@@ -4,17 +4,23 @@ import copy
 import inspect
 import logging
 from asyncio import iscoroutinefunction
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, Union
 
 import wrapt
 
 from ._handle_coroutine import handle_coroutine
 from .errors import UnhandledHTTPRequestError
-from .matchers import get_matchers_results, method, requests_match, uri
+from .matchers import TYPE_MATCHER_FUNCTION, get_matchers_results, method, requests_match, uri
 from .patch import CassettePatcherBuilder
 from .persisters.filesystem import CassetteDecodeError, CassetteNotFoundError, FilesystemPersister
 from .record_mode import RecordMode
 from .serializers import yamlserializer
 from .util import partition_dict
+
+if TYPE_CHECKING:
+    from vcr.request import Request
+
 
 log = logging.getLogger(__name__)
 
@@ -151,14 +157,14 @@ class Cassette:
     """A container for recorded requests and responses"""
 
     @classmethod
-    def load(cls, **kwargs):
+    def load(cls, **kwargs) -> 'Cassette':
         """Instantiate and load the cassette stored at the specified path."""
         new_cassette = cls(**kwargs)
         new_cassette._load()
         return new_cassette
 
     @classmethod
-    def use_arg_getter(cls, arg_getter):
+    def use_arg_getter(cls, arg_getter) -> CassetteContextDecorator:
         return CassetteContextDecorator(cls, arg_getter)
 
     @classmethod
@@ -167,11 +173,11 @@ class Cassette:
 
     def __init__(
         self,
-        path,
+        path: Union[str, Path],
         serializer=None,
         persister=None,
-        record_mode=RecordMode.ONCE,
-        match_on=(uri, method),
+        record_mode: RecordMode=RecordMode.ONCE,
+        match_on: tuple[TYPE_MATCHER_FUNCTION, TYPE_MATCHER_FUNCTION]=(uri, method),
         before_record_request=None,
         before_record_response=None,
         custom_patches=(),
@@ -179,7 +185,7 @@ class Cassette:
         allow_playback_repeats=False,
     ):
         self._persister = persister or FilesystemPersister
-        self._path = path
+        self._path = Path(path)
         self._serializer = serializer or yamlserializer
         self._match_on = match_on
         self._before_record_request = before_record_request or (lambda x: x)
@@ -191,8 +197,8 @@ class Cassette:
         self.allow_playback_repeats = allow_playback_repeats
 
         # self.data is the list of (req, resp) tuples
-        self.data = []
-        self.play_counts = collections.Counter()
+        self.data: list[tuple[Any, Any]] = []
+        self.play_counts: collections.Counter[int] = collections.Counter()
         self.dirty = False
         self.rewound = False
 
@@ -206,7 +212,7 @@ class Cassette:
         return len(self.play_counts.values()) == len(self)
 
     @property
-    def requests(self):
+    def requests(self) -> list:
         return [request for (request, response) in self.data]
 
     @property
@@ -281,7 +287,7 @@ class Cassette:
     def rewind(self):
         self.play_counts = collections.Counter()
 
-    def find_requests_with_most_matches(self, request):
+    def find_requests_with_most_matches(self, request: 'Request') -> list[tuple[Request, list, list]]:
         """
         Get the most similar request(s) stored in the cassette
         of a given request as a list of tuples like this:
@@ -299,7 +305,7 @@ class Cassette:
             best_matches.append((len(successes), stored_request, successes, fails))
         best_matches.sort(key=lambda t: t[0], reverse=True)
         # Get the first best matches (multiple if equal matches)
-        final_best_matches = []
+        final_best_matches: list[tuple[Request, list, list]] = []
 
         if not best_matches:
             return final_best_matches
@@ -320,12 +326,12 @@ class Cassette:
     def _as_dict(self):
         return {"requests": self.requests, "responses": self.responses}
 
-    def _save(self, force=False):
+    def _save(self, force=False) -> None:
         if force or self.dirty:
             self._persister.save_cassette(self._path, self._as_dict(), serializer=self._serializer)
             self.dirty = False
 
-    def _load(self):
+    def _load(self) -> None:
         try:
             requests, responses = self._persister.load_cassette(self._path, serializer=self._serializer)
             for request, response in zip(requests, responses):

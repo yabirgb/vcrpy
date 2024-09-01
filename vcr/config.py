@@ -5,6 +5,9 @@ import os
 import types
 from collections import abc as collections_abc
 from pathlib import Path
+from typing import Any, Callable, Iterable, Optional, SupportsIndex, Union
+
+from vcr.request import Request
 
 from . import filters, matchers
 from .cassette import Cassette
@@ -82,30 +85,27 @@ class VCR:
         self.record_on_exception = record_on_exception
         self._custom_patches = tuple(custom_patches)
 
-    def _get_serializer(self, serializer_name):
+    def _get_serializer(self, serializer_name: str):
         try:
             serializer = self.serializers[serializer_name]
         except KeyError:
             raise KeyError(f"Serializer {serializer_name} doesn't exist or isn't registered") from None
         return serializer
 
-    def _get_matchers(self, matcher_names):
-        matchers = []
+    def _get_matchers(self, matcher_names: Iterable[str]) -> list[matchers.TYPE_MATCHER_FUNCTION]:
         try:
-            for m in matcher_names:
-                matchers.append(self.matchers[m])
-        except KeyError:
-            raise KeyError(f"Matcher {m} doesn't exist or isn't registered") from None
-        return matchers
+            return [self.matchers[m] for m in matcher_names]
+        except KeyError as e:
+            raise KeyError(f"Matcher {str(e)} doesn't exist or isn't registered") from e
 
-    def use_cassette(self, path=None, **kwargs):
+    def use_cassette(self, path: Union[str, Path, None]=None, **kwargs):
         if path is not None and not isinstance(path, (str, Path)):
             function = path
             # Assume this is an attempt to decorate a function
             return self._use_cassette(**kwargs)(function)
         return self._use_cassette(path=path, **kwargs)
 
-    def _use_cassette(self, with_current_defaults=False, **kwargs):
+    def _use_cassette(self, with_current_defaults: bool=False, **kwargs):
         if with_current_defaults:
             config = self.get_merged_config(**kwargs)
             return Cassette.use(**config)
@@ -157,7 +157,7 @@ class VCR:
             merged_config["path"] = path
         return merged_config
 
-    def _build_before_record_response(self, options):
+    def _build_before_record_response(self, options: dict[str, Any]):
         before_record_response = options.get("before_record_response", self.before_record_response)
         decode_compressed_response = options.get(
             "decode_compressed_response",
@@ -180,7 +180,7 @@ class VCR:
 
         return before_record_response
 
-    def _build_before_record_request(self, options):
+    def _build_before_record_request(self, options: dict[str, Any]):
         filter_functions = []
         filter_headers = options.get("filter_headers", self.filter_headers)
         filter_query_parameters = options.get("filter_query_parameters", self.filter_query_parameters)
@@ -230,8 +230,10 @@ class VCR:
         return before_record_request
 
     @staticmethod
-    def _build_ignore_hosts(hosts_to_ignore):
-        def filter_ignored_hosts(request):
+    def _build_ignore_hosts(
+        hosts_to_ignore: SupportsIndex,
+    ) -> Callable[[Request], Optional[Request]]:
+        def filter_ignored_hosts(request: Request) -> Optional[Request]:
             if hasattr(request, "host") and request.host in hosts_to_ignore:
                 return
             return request
@@ -242,10 +244,10 @@ class VCR:
     def _build_path_from_func_using_module(function):
         return os.path.join(os.path.dirname(inspect.getfile(function)), function.__name__)
 
-    def register_serializer(self, name, serializer):
+    def register_serializer(self, name: str, serializer) -> None:
         self.serializers[name] = serializer
 
-    def register_matcher(self, name, matcher):
+    def register_matcher(self, name: str, matcher: matchers.TYPE_MATCHER_FUNCTION) -> None:
         self.matchers[name] = matcher
 
     def register_persister(self, persister):

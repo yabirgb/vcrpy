@@ -32,13 +32,13 @@ else:
     _cpoolBoto3HTTPConnection = AWSHTTPConnection
     _cpoolBoto3HTTPSConnection = AWSHTTPSConnection
 
-cpool = None
-conn = None
+
 # Try to save the original types for urllib3
 try:
     import urllib3.connection as conn
     import urllib3.connectionpool as cpool
 except ImportError:  # pragma: no cover
+    cpool = conn = None
     pass
 else:
     _VerifiedHTTPSConnection = conn.VerifiedHTTPSConnection
@@ -66,7 +66,7 @@ except ImportError:  # pragma: no cover
 else:
     _HTTPConnectionWithTimeout = httplib2.HTTPConnectionWithTimeout
     _HTTPSConnectionWithTimeout = httplib2.HTTPSConnectionWithTimeout
-    _SCHEME_TO_CONNECTION = httplib2.SCHEME_TO_CONNECTION
+    _SCHEME_TO_CONNECTION = httplib2.SCHEME_TO_CONNECTION  # type: ignore
 
 # Try to save the original types for Tornado
 try:

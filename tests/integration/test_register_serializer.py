@@ -1,3 +1,4 @@
+from typing import Any
 import vcr
 
 
@@ -7,12 +8,12 @@ class MockSerializer:
         self.deserialize_count = 0
         self.load_args = None
 
-    def deserialize(self, cassette_string):
+    def deserialize(self, cassette_string: str):
         self.serialize_count += 1
         self.cassette_string = cassette_string
         return {"interactions": []}
 
-    def serialize(self, cassette_dict):
+    def serialize(self, cassette_dict: dict[str, Any]):
         self.deserialize_count += 1
         return ""
 

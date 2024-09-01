@@ -2,6 +2,7 @@
 
 # External imports
 import os
+from pathlib import Path
 from urllib.request import urlopen
 
 import pytest
@@ -21,7 +22,7 @@ class CustomFilesystemPersister:
         return FilesystemPersister.load_cassette(cassette_path, serializer)
 
     @staticmethod
-    def save_cassette(cassette_path, cassette_dict, serializer):
+    def save_cassette(cassette_path: Path, cassette_dict, serializer):
         cassette_path += ".test"
         FilesystemPersister.save_cassette(cassette_path, cassette_dict, serializer)
 

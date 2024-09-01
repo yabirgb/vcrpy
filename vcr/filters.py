@@ -1,13 +1,35 @@
 import copy
 import json
+from typing import Any, Callable, Iterable, Sequence, Union
+from typing_extensions import Buffer
 import zlib
 from io import BytesIO
 from urllib.parse import urlencode, urlparse, urlunparse
 
+from vcr.request import Request
+from vcr.types import ResponseDict
+
 from .util import CaseInsensitiveDict
 
 
-def replace_headers(request, replacements):
+from typing import Protocol
+
+class ReplaceMentCallable(Protocol):
+    def __call__(self, key: str, value: Any, request: Request) -> Union[str, None]:
+        ...
+
+
+REPLACEMENT = tuple[
+    str,
+    Union[
+        str,
+        None,
+        ReplaceMentCallable,
+    ]
+]
+
+
+def replace_headers(request: Request, replacements: Sequence[REPLACEMENT]) -> Request:
     """Replace headers in request according to replacements.
     The replacements should be a list of (key, value) pairs where the value can be any of:
     1. A simple replacement string value.
@@ -26,7 +48,7 @@ def replace_headers(request, replacements):
     return request
 
 
-def remove_headers(request, headers_to_remove):
+def remove_headers(request: Request, headers_to_remove: list[str]) -> Request:
     """
     Wrap replace_headers() for API backward compatibility.
     """
@@ -34,7 +56,7 @@ def remove_headers(request, headers_to_remove):
     return replace_headers(request, replacements)
 
 
-def replace_query_parameters(request, replacements):
+def replace_query_parameters(request: Request, replacements: Sequence[REPLACEMENT]) -> Request:
     """Replace query parameters in request according to replacements.
 
     The replacements should be a list of (key, value) pairs where the value can be any of:
@@ -61,7 +83,7 @@ def replace_query_parameters(request, replacements):
     return request
 
 
-def remove_query_parameters(request, query_parameters_to_remove):
+def remove_query_parameters(request: Request, query_parameters_to_remove: list[str]):
     """
     Wrap replace_query_parameters() for API backward compatibility.
     """
@@ -69,7 +91,10 @@ def remove_query_parameters(request, query_parameters_to_remove):
     return replace_query_parameters(request, replacements)
 
 
-def replace_post_data_parameters(request, replacements):
+def replace_post_data_parameters(
+        request: Request,
+        replacements: Sequence[REPLACEMENT],
+) -> Request:
     """Replace post data in request--either form data or json--according to replacements.
 
     The replacements should be a list of (key, value) pairs where the value can be any of:
@@ -82,11 +107,11 @@ def replace_post_data_parameters(request, replacements):
         # Nothing to replace
         return request
 
-    replacements = dict(replacements)
     if request.method == "POST" and not isinstance(request.body, BytesIO):
+        replacements_dict = dict(replacements)
         if isinstance(request.body, dict):
             new_body = request.body.copy()
-            for k, rv in replacements.items():
+            for k, rv in replacements_dict.items():
                 if k in new_body:
                     ov = new_body.pop(k)
                     if callable(rv):
@@ -95,8 +120,8 @@ def replace_post_data_parameters(request, replacements):
                         new_body[k] = rv
             request.body = new_body
         elif request.headers.get("Content-Type") == "application/json":
-            json_data = json.loads(request.body)
-            for k, rv in replacements.items():
+            json_data: dict[str, Any] = json.loads(request.body)
+            for k, rv in replacements_dict.items():
                 if k in json_data:
                     ov = json_data.pop(k)
                     if callable(rv):
@@ -109,24 +134,27 @@ def replace_post_data_parameters(request, replacements):
                 request.body = request.body.encode("utf-8")
             splits = [p.partition(b"=") for p in request.body.split(b"&")]
             new_splits = []
-            for k, sep, ov in splits:
+            for key, sep, ov in splits:
                 if sep is None:
-                    new_splits.append((k, sep, ov))
+                    new_splits.append((key, sep, ov))
                 else:
-                    rk = k.decode("utf-8")
-                    if rk not in replacements:
-                        new_splits.append((k, sep, ov))
+                    rk = key.decode("utf-8")
+                    if rk not in replacements_dict:
+                        new_splits.append((key, sep, ov))
                     else:
-                        rv = replacements[rk]
+                        rv = replacements_dict[rk]
                         if callable(rv):
                             rv = rv(key=rk, value=ov.decode("utf-8"), request=request)
                         if rv is not None:
-                            new_splits.append((k, sep, rv.encode("utf-8")))
+                            new_splits.append((key, sep, rv.encode("utf-8")))
             request.body = b"&".join(k if sep is None else b"".join([k, sep, v]) for k, sep, v in new_splits)
     return request
 
 
-def remove_post_data_parameters(request, post_data_parameters_to_remove):
+def remove_post_data_parameters(
+        request: Request,
+        post_data_parameters_to_remove: list[str],
+):
     """
     Wrap replace_post_data_parameters() for API backward compatibility.
     """
@@ -134,7 +162,7 @@ def remove_post_data_parameters(request, post_data_parameters_to_remove):
     return replace_post_data_parameters(request, replacements)
 
 
-def decode_response(response):
+def decode_response(response: ResponseDict) -> ResponseDict:
     """
     If the response is compressed with gzip or deflate:
       1. decompress the response body
@@ -142,16 +170,16 @@ def decode_response(response):
       3. update content-length header to decompressed length
     """
 
-    def is_compressed(headers):
+    def is_compressed(headers: dict[str, Any]) -> bool:
         encoding = headers.get("content-encoding", [])
         return encoding and encoding[0] in ("gzip", "deflate")
 
-    def decompress_body(body, encoding):
+    def decompress_body(body: bytes, encoding: str) -> bytes:
         """Returns decompressed body according to encoding using zlib.
         to (de-)compress gzip format, use wbits = zlib.MAX_WBITS | 16
         """
         if not body:
-            return ""
+            return b""
         if encoding == "gzip":
             try:
                 return zlib.decompress(body, zlib.MAX_WBITS | 16)

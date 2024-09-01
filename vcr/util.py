@@ -1,6 +1,8 @@
 import types
 from collections.abc import Mapping, MutableMapping
 
+from vcr.request import Request
+
 
 # Shamelessly stolen from https://github.com/kennethreitz/requests/blob/master/requests/structures.py
 class CaseInsensitiveDict(MutableMapping):
@@ -96,7 +98,7 @@ def _is_nonsequence_iterator(obj):
     )
 
 
-def read_body(request):
+def read_body(request: Request):
     if hasattr(request.body, "read"):
         return request.body.read()
     if _is_nonsequence_iterator(request.body):

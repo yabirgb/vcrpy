@@ -1,11 +1,14 @@
 import json
+from typing import Any
+
+from vcr.types import CassetteDict
 
 
-def deserialize(cassette_string):
+def deserialize(cassette_string: str) -> CassetteDict:
     return json.loads(cassette_string)
 
 
-def serialize(cassette_dict):
+def serialize(cassette_dict: CassetteDict) -> str:
     error_message = (
         "Does this HTTP interaction contain binary data? "
         "If so, use a different serializer (like the yaml serializer) "

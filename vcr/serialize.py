@@ -1,7 +1,10 @@
+from typing import Any
 import yaml
 
 from vcr.request import Request
 from vcr.serializers import compat
+from vcr.serializers.types import Serializer
+from vcr.types import CassetteDict, ResponseDict
 
 # version 1 cassettes started with VCR 1.0.x.
 # Before 1.0.x, there was no versioning.
@@ -20,11 +23,11 @@ Deserializing: string (yaml converts from utf-8) -> bytestring
 """
 
 
-def _looks_like_an_old_cassette(data):
+def _looks_like_an_old_cassette(data: list[str]) -> bool:
     return isinstance(data, list) and len(data) and "request" in data[0]
 
 
-def _warn_about_old_cassette_format():
+def _warn_about_old_cassette_format() -> None:
     raise ValueError(
         "Your cassette files were generated in an older version "
         "of VCR. Delete your cassettes or run the migration script."
@@ -32,7 +35,10 @@ def _warn_about_old_cassette_format():
     )
 
 
-def deserialize(cassette_string, serializer):
+def deserialize(
+        cassette_string: str,
+        serializer: Serializer,
+) -> tuple[list[Request], list[ResponseDict]]:
     try:
         data = serializer.deserialize(cassette_string)
     # Old cassettes used to use yaml object thingy so I have to
@@ -47,7 +53,7 @@ def deserialize(cassette_string, serializer):
     return requests, responses
 
 
-def serialize(cassette_dict, serializer):
+def serialize(cassette_dict: CassetteDict, serializer: Serializer) -> str:
     interactions = [
         {
             "request": compat.convert_to_unicode(request._to_dict()),

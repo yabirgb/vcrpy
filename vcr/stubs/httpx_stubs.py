@@ -2,6 +2,7 @@ import asyncio
 import functools
 import inspect
 import logging
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -60,11 +61,10 @@ async def _to_serialized_response(resp, aread):
     return result
 
 
-def _from_serialized_headers(headers):
+def _from_serialized_headers(headers: dict[str, Any]):
     """
     httpx accepts headers as list of tuples of header key and value.
     """
-
     header_list = []
     for key, values in headers.items():
         for v in values:

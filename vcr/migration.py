@@ -14,11 +14,16 @@ The PATH can be path to the directory with cassettes or cassette itself
 
 import json
 import os
+from pathlib import Path
 import shutil
 import sys
 import tempfile
+from typing import IO, Any, Callable
 
 import yaml
+
+from vcr.cassette import Cassette
+from vcr.types import CassetteDict
 
 from . import request
 from .serialize import serialize
@@ -29,14 +34,14 @@ from .stubs.compat import get_httpmessage
 try:
     from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader
+    from yaml import Loader  # type: ignore
 
 
-def preprocess_yaml(cassette):
-    # this is the hack that makes the whole thing work.  The old version used
+def preprocess_yaml(cassette: str) -> str:
+    # this is the hack that makes the whole thing work. The old version used
     # to deserialize to Request objects automatically using pyYaml's !!python
-    # tag system.  This made it difficult to deserialize old cassettes on new
-    # versions.  So this just strips the tags before deserializing.
+    # tag system. This made it difficult to deserialize old cassettes on new
+    # versions. So this just strips the tags before deserializing.
 
     STRINGS_TO_NUKE = [
         "!!python/object:vcr.request.Request",
@@ -59,11 +64,11 @@ def build_uri(**parts):
     return "{protocol}://{host}{port}{path}".format(**parts)
 
 
-def _migrate(data):
+def _migrate(data: list[dict[str, Any]]) -> dict[str, list[Any]]:
     interactions = []
     for item in data:
-        req = item["request"]
-        res = item["response"]
+        req: dict[str, Any] = item["request"]
+        res: dict[str, Any] = item["response"]
         uri = {k: req.pop(k) for k in PARTS}
         req["uri"] = build_uri(**uri)
         # convert headers to dict of lists
@@ -103,7 +108,7 @@ def _already_migrated(data):
         return False
 
 
-def migrate_yml(in_fp, out_fp):
+def migrate_yml(in_fp: IO, out_fp: IO):
     data = yaml.load(preprocess_yaml(in_fp.read()), Loader=Loader)
     if _already_migrated(data):
         return False
@@ -114,7 +119,7 @@ def migrate_yml(in_fp, out_fp):
     return True
 
 
-def migrate(file_path, migration_fn):
+def migrate(file_path: Path, migration_fn: Callable) -> bool:
     # because we assume that original files can be reverted
     # we will try to copy the content. (os.rename not needed)
     with tempfile.TemporaryFile(mode="w+") as out_fp:
@@ -127,7 +132,7 @@ def migrate(file_path, migration_fn):
         return True
 
 
-def try_migrate(path):
+def try_migrate(path: str) -> bool:
     if path.endswith(".json"):
         return migrate(path, migrate_json)
     elif path.endswith((".yaml", ".yml")):
